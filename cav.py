@@ -16,7 +16,7 @@ def flatten_activations_and_get_labels(concepts, layer_name, activations):
     data = []
     concept_labels = np.zeros((len(concepts),  min_num_samples))
     for i, c in enumerate(concepts):
-        data.extend(activations[c][layer_name][: min_num_samples].reshape( min_num_samples, -1))
+        data.extend(activations[c][layer_name][:min_num_samples].reshape(min_num_samples, -1))
         concept_labels[i *  min_num_samples, (i + 1) *  min_num_samples] = i
     data = np.array(data)
     return data, concept_labels

@@ -38,7 +38,7 @@ def get_activations(model, output_dir, data_loader, concept_name, layer_names, m
     for l in layer_names:
         activations[l] = np.stack(activations[l], axis=0)
 
-    with h5py.File(os.path.join(output_dir, 'activations_%.h5' % concept_name), 'w') as f:
+    with h5py.File(os.path.join(output_dir, 'activations_%s.h5' % concept_name), 'w') as f:
         for l in layer_names:
             f.create_dataset(l, data=activations[l])
 
