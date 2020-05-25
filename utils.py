@@ -8,28 +8,39 @@ import h5py
 device = 'gpu' if torch.cuda.is_available() else 'cpu'
 
 
-def get_activations(model, output_dir, data_loader, layer_names, max_samples):
+def get_activations(model, output_dir, data_loader, concept_name, layer_names, max_samples):
+    '''
+    The function to generate the activations of all layers for ONE concept only
+    :param model:
+    :param output_dir:
+    :param data_loader: the dataloader for the input of ONE concept
+    :param layer_names:
+    :param max_samples:
+    :return:
+    '''
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     model = model.to(device)
     model = model.eval()
+    activations = {}
+    for l in layer_names:
+        activations[l] = []
 
     for i, data in enumerate(data_loader):
         if i == max_samples:
             break
         data = data.to(device)
-        activations = {}
         outputs = model(data)
         for l in layer_names:
-            z = model.intermediates[l].cpu().detach().numpy()
-            if l not in activations.keys():
-                activations[l] = z
-            else:
-                activations[l] = np.append(activations[l], z, axis=0)
+            z = model.intermediate_activations[l].cpu().detach().numpy()
+            activations[l].append(z)
 
-        with h5py.File(os.path.join(output_dir, 'activations.h5'), 'w') as f:
-            for l in layer_names:
-                f.create_dataset(name=l, data=activations[l])
+    for l in layer_names:
+        activations[l] = np.stack(activations[l], axis=0)
+
+    with h5py.File(os.path.join(output_dir, 'activations_%.h5' % concept_name), 'w') as f:
+        for l in layer_names:
+            f.create_dataset(l, data=activations[l])
 
 
 def load_activations(path):
