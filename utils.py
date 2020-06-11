@@ -1,11 +1,13 @@
 import torch
 import numpy as np
-import pandas as pd
-from torch.utils.data import DataLoader
 import os
 import h5py
 
-device = 'gpu' if torch.cuda.is_available() else 'cpu'
+use_gpu = torch.cuda.is_available()
+if use_gpu:
+    device = torch.device("cuda")
+else:
+    device = torch.device("cpu")
 
 
 def get_activations(model, output_dir, data_loader, concept_name, layer_names, max_samples):
@@ -21,7 +23,7 @@ def get_activations(model, output_dir, data_loader, concept_name, layer_names, m
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     model = model.to(device)
-    model = model.eval()
+    model.eval()
     activations = {}
     for l in layer_names:
         activations[l] = []
@@ -29,14 +31,14 @@ def get_activations(model, output_dir, data_loader, concept_name, layer_names, m
     for i, data in enumerate(data_loader):
         if i == max_samples:
             break
-        data = data.to(device)
-        outputs = model(data)
+        data = data[0].to(device)
+        _ = model(data)
         for l in layer_names:
             z = model.intermediate_activations[l].cpu().detach().numpy()
             activations[l].append(z)
 
     for l in layer_names:
-        activations[l] = np.stack(activations[l], axis=0)
+        activations[l] = np.concatenate(activations[l], axis=0)
 
     with h5py.File(os.path.join(output_dir, 'activations_%s.h5' % concept_name), 'w') as f:
         for l in layer_names:

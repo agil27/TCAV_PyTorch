@@ -2,17 +2,35 @@ import numpy as np
 from cav import CAV
 import os
 from utils import get_activations, load_activations
+import torch
+from tqdm import tqdm
 
+use_gpu = torch.cuda.is_available()
+if use_gpu:
+    device = torch.device("cuda")
+else:
+    device = torch.device("cpu")
 
-def directional_derivative(model, x, cav, layer_name, class_name):
-    _ = model(x)
-    gradient = model.generate_gradient(class_name, layer_name).reshape(-1)
+def directional_derivative(model, cav, layer_name, class_name):
+    gradient = model.generate_gradients(class_name, layer_name).reshape(-1)
     return np.dot(gradient, cav) < 0
 
 
-def tcav_score(model, data_loader, class_name, cav, layer_name):
-    derivatives = [directional_derivative(model, x, cav, layer_name, class_name) for x in data_loader]
-    score = np.array(derivatives).astype(np.int).sum(axis=0) / len(derivatives)
+def tcav_score(model, data_loader, cav, layer_name, num_classes, concept):
+    model.eval()
+    derivatives = [[] for _ in range(num_classes)]
+    tcav_bar = tqdm(data_loader)
+    tcav_bar.set_description('Calculating tcav score for %s' % concept)
+    for x, _ in tcav_bar:
+        x = x.to(device)
+        # x.requires_grad_(True)
+        outputs = model(x)
+        k = outputs.max(dim=1)[1]
+        if k < num_classes:
+            derivatives[k].append(directional_derivative(model, cav, layer_name, k))
+    score = np.zeros(num_classes)
+    for k in range(num_classes):
+        score[k] = np.array(derivatives[k]).astype(np.int).sum(axis=0) / len(derivatives[k])
     return score
 
 
@@ -21,7 +39,7 @@ class TCAV(object):
         self.model = model
         self.input_dataloader = input_dataloader
         self.concept_dataloaders = concept_dataloaders
-        self.concepts = concept_dataloaders.keys()
+        self.concepts = list(concept_dataloaders.keys())
         self.output_dir = 'output'
         self.max_samples = max_samples
         self.lr = 1e-3
@@ -44,10 +62,10 @@ class TCAV(object):
         self.cavs = cav_trainer.get_cav()
 
     def calculate_tcav_score(self, layer_name):
-        self.scores = [{} for _ in range(self.num_classes)]
-        for k in self.num_classes:
-            for i, cav in enumerate(self.cavs):
-                self.scores[k][self.concepts[i]] = tcav_score(self.model, self.input_dataloader, k, cav, layer_name)
+        self.scores = np.zeros((self.cavs.shape[0], self.num_classes))
+        for i, cav in enumerate(self.cavs):
+            self.scores[i] = tcav_score(self.model, self.input_dataloader, cav, layer_name, self.num_classes, self.concepts[i])
+        self.scores = self.scores.T.tolist()
 
     def get_tcav_score(self):
         return self.scores

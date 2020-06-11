@@ -11,13 +11,13 @@ def flatten_activations_and_get_labels(concepts, layer_name, activations):
     :return:
     '''
     # in case of different number of samples for each concept
-    min_num_samples = np.min([activations[c][layer_name].size(0) for c in concepts])
-    # flatten the activations and acquire the concept dictionary
+    min_num_samples = np.min([activations[c][layer_name].shape[0] for c in concepts])
+    # flatten the activations and mark the concept label
     data = []
-    concept_labels = np.zeros((len(concepts),  min_num_samples))
+    concept_labels = np.zeros(len(concepts) * min_num_samples)
     for i, c in enumerate(concepts):
         data.extend(activations[c][layer_name][:min_num_samples].reshape(min_num_samples, -1))
-        concept_labels[i *  min_num_samples, (i + 1) *  min_num_samples] = i
+        concept_labels[i * min_num_samples : (i + 1) * min_num_samples] = i
     data = np.array(data)
     return data, concept_labels
 
@@ -39,7 +39,7 @@ class CAV(object):
         else:
             model = LogisticRegression()
 
-        x_train, x_test, y_train, y_test, _ = train_test_split(data, labels, test_size=0.2, stratify=labels)
+        x_train, x_test, y_train, y_test = train_test_split(data, labels, test_size=0.2, stratify=labels)
         model.fit(x_train, y_train)
         '''
         The coef_ attribute is the coefficients in linear regression.
